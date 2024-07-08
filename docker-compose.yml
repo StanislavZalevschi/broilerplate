@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+    laravel-nginx:
+        container_name: laravel-nginx
+        image: jwilder/nginx-proxy
+        restart: always
+        ports:
+            - "8087:80"
+        volumes:
+            - ~/nginx/vhost.d:/etc/nginx/vhost.d:ro
+            - /var/run/docker.sock:/tmp/docker.sock:ro
+        networks:
+            - local-dev
+
+    laravel-db:
+        container_name: laravel-db
+        image: mysql
+        restart: unless-stopped
+        tty: true
+        depends_on:
+            - laravel-nginx
+        ports:
+            - "3306:3306"
+        environment:
+            MYSQL_DATABASE: laravel
+            MYSQL_ROOT_PASSWORD: "123"
+            SERVICE_TAGS: dev
+            SERVICE_NAME: mysql
+        networks:
+            - local-dev
+
+    laravel:
+        container_name: laravel
+        build:
+            context: .
+        ports:
+            - "5173:5173"
+        depends_on:
+            - laravel-nginx
+            - laravel-db
+        environment:
+            VIRTUAL_HOST: laravel.loc
+            HOST_IP: "${HOST_IP:-host.docker.internal}"
+        volumes:
+            - .:/var/www/html:delegated
+        restart: always
+        networks:
+            - local-dev
+
+    laravel-redis:
+        container_name: laravel-redis
+        image: "redis:alpine"
+        ports:
+            - "6379:6379"
+        healthcheck:
+            test: [ "CMD", "redis-cli", "ping" ]
+            retries: 3
+            timeout: 5s
+        networks:
+            - local-dev
+
+networks:
+    local-dev:
+        external: true
